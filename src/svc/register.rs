@@ -39,13 +39,13 @@ impl RegSvcClient {
 
     pub async fn register_service(self: &mut Self, keep_alive_sec: u64, service_ttl_sec: u64, key_prefix: &String,
                                   svc_id: &String, svc_name: &String, svc_addr: &String) -> Result<(), Box<dyn Error>> {
-        let svc_id = if svc_id == "" { "/etcd_services".to_owned() } else { svc_id.clone() };
+        let key_prefix = if key_prefix == "" { "/etcd_services".to_owned() } else { key_prefix.clone() };
         let service_ttl_sec = if service_ttl_sec == 0 { 30 as u64 } else { service_ttl_sec };
-        let keep_alive_sec= if keep_alive_sec == 0 { 5 as u64 } else { keep_alive_sec };
+        let keep_alive_sec = if keep_alive_sec == 0 { 5 as u64 } else { keep_alive_sec };
 
         {
-            // watch keep alive event
             let mut inbound = self.client.lock().await.lease().keep_alive_responses().await.unwrap();
+            // watch keep alive event
             tokio::spawn(async move {
                 loop {
                     match inbound.next().await {
@@ -54,19 +54,20 @@ impl RegSvcClient {
                         }
                         None => {
                             warn!("[Cancel] keep alive at {:?}", SystemTime::now());
+                            break;
                         }
                     }
                 }
             });
         }
 
-        let lease_grant = self.client.lock().await.lease()
+        let resp_lease_grant = self.client.lock().await.lease()
             .grant(LeaseGrantRequest::new(Duration::from_secs(service_ttl_sec))).await?;
 
         let key = [key_prefix.clone(), svc_id.clone(), svc_name.clone()].join("/");
-        let mut req_with_lease = PutRequest::new(key, svc_addr.clone());
-        req_with_lease.set_lease(lease_grant.id());
-        self.client.lock().await.kv().put(req_with_lease).await?;
+        let mut req_put = PutRequest::new(key, svc_addr.clone());
+        req_put.set_lease(resp_lease_grant.id());
+        self.client.lock().await.kv().put(req_put).await?;
 
         {
             // keep alive the lease
@@ -74,7 +75,7 @@ impl RegSvcClient {
             tokio::spawn(async move {
                 loop {
                     tokio::time::interval(Duration::from_secs(keep_alive_sec)).tick().await;
-                    arc_client.lock().await.lease().keep_alive(LeaseKeepAliveRequest::new(lease_grant.id())).await.unwrap();
+                    arc_client.lock().await.lease().keep_alive(LeaseKeepAliveRequest::new(resp_lease_grant.id())).await.unwrap();
                 }
             });
         }
