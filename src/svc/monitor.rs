@@ -5,7 +5,7 @@ use tonic::transport::ClientTlsConfig;
 use std::error::Error;
 use std::collections::HashMap;
 use log::{debug, warn};
-use std::time::SystemTime;
+use chrono::prelude::*;
 use tokio_stream::StreamExt;
 
 
@@ -74,29 +74,29 @@ impl MonSvcClient {
                                                 EventType::Put => {
                                                     svc_map.lock().await.insert(kv.key_str().to_owned(), kv.value_str().to_owned());
                                                     put_callback(kv.key_str().to_owned(), kv.value_str().to_owned());
-                                                    println!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), SystemTime::now());
-                                                    debug!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), SystemTime::now());
+                                                    println!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), Utc::now().to_string());
+                                                    debug!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), Utc::now().to_string());
                                                 }
                                                 EventType::Delete => {
                                                     svc_map.lock().await.remove(&kv.key_str().to_owned());
                                                     delete_callback(kv.key_str().to_owned());
-                                                    println!("service watcher delete {:?} at {:?}", kv.key_str(), SystemTime::now());
-                                                    debug!("service watcher delete {:?} at {:?}", kv.key_str(), SystemTime::now());
+                                                    println!("service watcher delete {:?} at {:?}", kv.key_str(), Utc::now().to_string());
+                                                    debug!("service watcher delete {:?} at {:?}", kv.key_str(), Utc::now().to_string());
                                                 }
                                             }
                                         }
                                     }
                                 }
                                 Err(e) => {
-                                    println!("[Cancel] service watcher at {:?}, err: {:?}", SystemTime::now(), e);
-                                    warn!("[Cancel] service watcher at {:?}, err: {:?}", SystemTime::now(), e);
+                                    println!("[Cancel] service watcher at {:?}, err: {:?}", Utc::now().to_string(), e);
+                                    warn!("[Cancel] service watcher at {:?}, err: {:?}", Utc::now().to_string(), e);
                                     break;
                                 }
                             }
                         }
                         None => {
-                            println!("[Cancel] service watcher at {:?}", SystemTime::now());
-                            warn!("[Cancel] service watcher at {:?}", SystemTime::now());
+                            println!("[Cancel] service watcher at {:?}", Utc::now().to_string());
+                            warn!("[Cancel] service watcher at {:?}", Utc::now().to_string());
                             break;
                         }
                     }

@@ -6,7 +6,7 @@ use std::error::Error;
 use tokio::time::Duration;
 use tokio_stream::StreamExt;
 use log::{debug, warn};
-use std::time::SystemTime;
+use chrono::prelude::*;
 
 
 pub struct RegSvcClient {
@@ -50,12 +50,12 @@ impl RegSvcClient {
                 loop {
                     match inbound.next().await {
                         Some(resp) => {
-                            println!("keep alive response: {:?} at {:?}", resp, SystemTime::now());
-                            debug!("keep alive response: {:?} at {:?}", resp, SystemTime::now());
+                            println!("keep alive response: {:?} at {:?}", resp, Utc::now().to_string());
+                            debug!("keep alive response: {:?} at {:?}", resp, Utc::now().to_string());
                         }
                         None => {
-                            println!("[Cancel] keep alive at {:?}", SystemTime::now());
-                            warn!("[Cancel] keep alive at {:?}", SystemTime::now());
+                            println!("[Cancel] keep alive at {:?}", Utc::now().to_string());
+                            warn!("[Cancel] keep alive at {:?}", Utc::now().to_string());
                             break;
                         }
                     }
@@ -76,8 +76,10 @@ impl RegSvcClient {
             let arc_client = self.client.clone();
             tokio::spawn(async move {
                 loop {
-                    tokio::time::interval(Duration::from_secs(keep_alive_sec)).tick().await;
                     arc_client.lock().await.lease().keep_alive(LeaseKeepAliveRequest::new(resp_lease_grant.id())).await.unwrap();
+                    println!("keep alive request at {:?}", Utc::now().to_string());
+                    debug!("keep alive request at {:?}", Utc::now().to_string());
+                    tokio::time::sleep(Duration::from_secs(keep_alive_sec)).await;
                 }
             });
         }
