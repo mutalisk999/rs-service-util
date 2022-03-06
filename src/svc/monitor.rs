@@ -67,16 +67,16 @@ impl MonSvcClient {
                             match resp_res {
                                 Ok(resp) => {
                                     if resp.is_some() {
-                                        for mut e in resp.unwrap().take_events()
+                                        for mut ev in resp.unwrap().take_events()
                                         {
-                                            let kv = e.take_kvs().unwrap();
-                                            match e.event_type() {
+                                            let kv = ev.take_kvs().unwrap();
+                                            match ev.event_type() {
                                                 EventType::Put => {
                                                     svc_map.lock().await.insert(kv.key_str().to_owned(), kv.value_str().to_owned());
                                                     put_callback(kv.key_str().to_owned(), kv.value_str().to_owned());
                                                     println!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), Utc::now().to_string());
                                                     debug!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), Utc::now().to_string());
-                                                }
+                                                },
                                                 EventType::Delete => {
                                                     svc_map.lock().await.remove(&kv.key_str().to_owned());
                                                     delete_callback(kv.key_str().to_owned());
@@ -86,14 +86,14 @@ impl MonSvcClient {
                                             }
                                         }
                                     }
-                                }
+                                },
                                 Err(e) => {
                                     println!("[Cancel] service watcher at {:?}, err: {:?}", Utc::now().to_string(), e);
                                     warn!("[Cancel] service watcher at {:?}, err: {:?}", Utc::now().to_string(), e);
                                     break;
                                 }
                             }
-                        }
+                        },
                         None => {
                             println!("[Cancel] service watcher at {:?}", Utc::now().to_string());
                             warn!("[Cancel] service watcher at {:?}", Utc::now().to_string());
