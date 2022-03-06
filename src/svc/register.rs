@@ -14,8 +14,8 @@ pub struct RegSvcClient {
 }
 
 impl RegSvcClient {
-    pub async fn new(endpoints: &Vec<String>, tls_config: &Option<ClientTlsConfig>,
-                     auth_config: &Option<(String, String)>) -> Result<RegSvcClient, Box<dyn Error>> {
+    pub async fn new(endpoints: Vec<String>, tls_config: Option<ClientTlsConfig>,
+                     auth_config: Option<(String, String)>) -> Result<RegSvcClient, Box<dyn Error>> {
         let cli_config = ClientConfig {
             endpoints: endpoints.clone(),
             auth: auth_config.clone(),
@@ -37,8 +37,8 @@ impl RegSvcClient {
         Ok(())
     }
 
-    pub async fn register_service(self: &mut Self, keep_alive_sec: u64, service_ttl_sec: u64, key_prefix: &String,
-                                  svc_id: &String, svc_name: &String, svc_addr: &String) -> Result<(), Box<dyn Error>> {
+    pub async fn register_service(self: &mut Self, keep_alive_sec: u64, service_ttl_sec: u64, key_prefix: String,
+                                  svc_id: String, svc_name: String, svc_addr: String) -> Result<(), Box<dyn Error>> {
         let key_prefix = if key_prefix == "" { "/etcd_services".to_owned() } else { key_prefix.clone() };
         let service_ttl_sec = if service_ttl_sec == 0 { 30 as u64 } else { service_ttl_sec };
         let keep_alive_sec = if keep_alive_sec == 0 { 5 as u64 } else { keep_alive_sec };
@@ -50,9 +50,11 @@ impl RegSvcClient {
                 loop {
                     match inbound.next().await {
                         Some(resp) => {
+                            println!("keep alive response: {:?} at {:?}", resp, SystemTime::now());
                             debug!("keep alive response: {:?} at {:?}", resp, SystemTime::now());
                         }
                         None => {
+                            println!("[Cancel] keep alive at {:?}", SystemTime::now());
                             warn!("[Cancel] keep alive at {:?}", SystemTime::now());
                             break;
                         }

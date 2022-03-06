@@ -15,8 +15,8 @@ pub struct MonSvcClient {
 }
 
 impl MonSvcClient {
-    pub async fn new(endpoints: &Vec<String>, tls_config: &Option<ClientTlsConfig>,
-                     auth_config: &Option<(String, String)>) -> Result<MonSvcClient, Box<dyn Error>> {
+    pub async fn new(endpoints: Vec<String>, tls_config: Option<ClientTlsConfig>,
+                     auth_config: Option<(String, String)>) -> Result<MonSvcClient, Box<dyn Error>> {
         let cli_config = ClientConfig {
             endpoints: endpoints.clone(),
             auth: auth_config.clone(),
@@ -43,8 +43,8 @@ impl MonSvcClient {
         Ok(())
     }
 
-    pub async fn monitor_service(self: &mut Self, key_prefix: &String, put_callback: &'static (dyn Fn(&String, &String) -> () + Sync),
-                                 delete_callback: &'static (dyn Fn(&String) -> () + Sync)) -> Result<(), Box<dyn Error>> {
+    pub async fn monitor_service(self: &mut Self, key_prefix: String, put_callback: &'static (dyn Fn(String, String) -> () + Sync),
+                                 delete_callback: &'static (dyn Fn(String) -> () + Sync)) -> Result<(), Box<dyn Error>> {
         let key_prefix = if key_prefix == "" { "/etcd_services".to_owned() } else { key_prefix.clone() };
 
         let req_range = RangeRequest::new(KeyRange::prefix(key_prefix.clone()));
@@ -52,7 +52,7 @@ impl MonSvcClient {
 
         for kv in resp_range.take_kvs() {
             self.svc_map.lock().await.insert(kv.key_str().to_owned(), kv.value_str().to_owned());
-            put_callback(&kv.key_str().to_owned(), &kv.value_str().to_owned());
+            put_callback(kv.key_str().to_owned(), kv.value_str().to_owned());
         }
 
         {
@@ -73,25 +73,29 @@ impl MonSvcClient {
                                             match e.event_type() {
                                                 EventType::Put => {
                                                     svc_map.lock().await.insert(kv.key_str().to_owned(), kv.value_str().to_owned());
-                                                    put_callback(&kv.key_str().to_owned(), &kv.value_str().to_owned());
-                                                    debug!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), SystemTime::now())
+                                                    put_callback(kv.key_str().to_owned(), kv.value_str().to_owned());
+                                                    println!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), SystemTime::now());
+                                                    debug!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), SystemTime::now());
                                                 }
                                                 EventType::Delete => {
                                                     svc_map.lock().await.remove(&kv.key_str().to_owned());
-                                                    delete_callback(&kv.key_str().to_owned());
-                                                    debug!("service watcher delete {:?} at {:?}", kv.key_str(), SystemTime::now())
+                                                    delete_callback(kv.key_str().to_owned());
+                                                    println!("service watcher delete {:?} at {:?}", kv.key_str(), SystemTime::now());
+                                                    debug!("service watcher delete {:?} at {:?}", kv.key_str(), SystemTime::now());
                                                 }
                                             }
                                         }
                                     }
                                 }
                                 Err(e) => {
+                                    println!("[Cancel] service watcher at {:?}, err: {:?}", SystemTime::now(), e);
                                     warn!("[Cancel] service watcher at {:?}, err: {:?}", SystemTime::now(), e);
                                     break;
                                 }
                             }
                         }
                         None => {
+                            println!("[Cancel] service watcher at {:?}", SystemTime::now());
                             warn!("[Cancel] service watcher at {:?}", SystemTime::now());
                             break;
                         }
