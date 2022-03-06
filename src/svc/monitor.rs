@@ -43,8 +43,8 @@ impl MonSvcClient {
         Ok(())
     }
 
-    pub async fn monitor_service(self: &mut Self, key_prefix: &String, put_callback: &Option<Box<dyn Fn(String, String) -> ()>>,
-                                 delete_callback: &Option<Box<dyn Fn(String) -> ()>>) -> Result<(), Box<dyn Error>> {
+    pub async fn monitor_service(self: &mut Self, key_prefix: &String, put_callback: &'static (dyn Fn(&String, &String) -> () + Sync),
+                                 delete_callback: &'static (dyn Fn(&String) -> () + Sync)) -> Result<(), Box<dyn Error>> {
         let key_prefix = if key_prefix == "" { "/etcd_services".to_owned() } else { key_prefix.clone() };
 
         let req_range = RangeRequest::new(KeyRange::prefix(key_prefix.clone()));
@@ -52,12 +52,7 @@ impl MonSvcClient {
 
         for kv in resp_range.take_kvs() {
             self.svc_map.lock().await.insert(kv.key_str().to_owned(), kv.value_str().to_owned());
-            match put_callback {
-                Some(ref cb) => {
-                    cb(kv.key_str().to_owned(), kv.value_str().to_owned());
-                }
-                None => {}
-            }
+            put_callback(&kv.key_str().to_owned(), &kv.value_str().to_owned());
         }
 
         {
@@ -67,7 +62,7 @@ impl MonSvcClient {
             tokio::spawn(async move {
                 let mut inbound = client.lock().await.watch(KeyRange::prefix(key_prefix.clone())).await.unwrap();
                 loop {
-                    match inbound.next().await{
+                    match inbound.next().await {
                         Some(resp_res) => {
                             match resp_res {
                                 Ok(resp) => {
@@ -78,22 +73,12 @@ impl MonSvcClient {
                                             match e.event_type() {
                                                 EventType::Put => {
                                                     svc_map.lock().await.insert(kv.key_str().to_owned(), kv.value_str().to_owned());
-                                                    // match put_callback {
-                                                    //     Some(ref cb) => {
-                                                    //         cb(kv.key_str().to_owned(), kv.value_str().to_owned());
-                                                    //     }
-                                                    //     None => {}
-                                                    // }
+                                                    put_callback(&kv.key_str().to_owned(), &kv.value_str().to_owned());
                                                     debug!("service watcher put {:?} | {:?} at {:?}", kv.key_str(), kv.value_str(), SystemTime::now())
                                                 }
                                                 EventType::Delete => {
                                                     svc_map.lock().await.remove(&kv.key_str().to_owned());
-                                                    // match delete_callback {
-                                                    //     Some(ref cb) => {
-                                                    //         cb(kv.key_str().to_owned());
-                                                    //     }
-                                                    //     None => {}
-                                                    // }
+                                                    delete_callback(&kv.key_str().to_owned());
                                                     debug!("service watcher delete {:?} at {:?}", kv.key_str(), SystemTime::now())
                                                 }
                                             }
