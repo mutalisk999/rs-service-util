@@ -11,6 +11,7 @@ use chrono::prelude::*;
 
 pub struct RegSvcClient {
     client: Arc<Mutex<Client>>,
+    status: Arc<Mutex<u8>>,
 }
 
 impl RegSvcClient {
@@ -25,15 +26,24 @@ impl RegSvcClient {
         let client = Client::connect(cli_config).await?;
         Ok(RegSvcClient {
             client: Arc::new(Mutex::new(client)),
+            status: Arc::new(Mutex::new(1)),
         })
     }
 
-    pub fn get_instance_handle(self: &mut Self) -> Arc<Mutex<Client>> {
-        self.client.clone()
+    pub async fn get_instance_handle(self: &mut Self) -> Option<Arc<Mutex<Client>>> {
+        match self.status.lock().await.clone() {
+            1 => {
+                Some(self.client.clone())
+            },
+            _ => {
+                None
+            }
+        }
     }
 
     pub async fn dispose_reg_svc_client(self: &mut Self) -> Result<(), Box<dyn Error>> {
         self.client.lock().await.shutdown().await?;
+        *(self.status.lock().await) = 0 as u8;
         Ok(())
     }
 
@@ -45,9 +55,15 @@ impl RegSvcClient {
 
         {
             let mut inbound = self.client.lock().await.lease().keep_alive_responses().await.unwrap();
+            let status = self.status.clone();
             // watch keep alive event
             tokio::spawn(async move {
                 loop {
+                    if *(status.lock().await) == 0 {
+                        println!("[Cancel] keep alive response at {:?}", Utc::now().to_string());
+                        warn!("[Cancel] keep alive response at {:?}", Utc::now().to_string());
+                        break;
+                    }
                     match inbound.next().await {
                         Some(resp) => {
                             println!("keep alive response: {:?} at {:?}", resp, Utc::now().to_string());
@@ -74,8 +90,14 @@ impl RegSvcClient {
         {
             // keep alive the lease
             let arc_client = self.client.clone();
+            let status = self.status.clone();
             tokio::spawn(async move {
                 loop {
+                    if *(status.lock().await) == 0 {
+                        println!("[Cancel] keep alive request at {:?}", Utc::now().to_string());
+                        warn!("[Cancel] keep alive request at {:?}", Utc::now().to_string());
+                        break;
+                    }
                     let keep_alive_res = arc_client.lock().await.lease().keep_alive(LeaseKeepAliveRequest::new(resp_lease_grant.id())).await;
                     match keep_alive_res {
                         Ok(_) => {

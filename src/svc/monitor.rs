@@ -11,6 +11,7 @@ use tokio_stream::StreamExt;
 
 pub struct MonSvcClient {
     client: Arc<Mutex<Client>>,
+    status: Arc<Mutex<u8>>,
     svc_map: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -26,20 +27,36 @@ impl MonSvcClient {
         let client = Client::connect(cli_config).await?;
         Ok(MonSvcClient {
             client: Arc::new(Mutex::new(client)),
+            status: Arc::new(Mutex::new(1)),
             svc_map: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
-    pub fn get_instance_handle(self: &mut Self) -> Arc<Mutex<Client>> {
-        self.client.clone()
+    pub async fn get_instance_handle(self: &mut Self) -> Option<Arc<Mutex<Client>>> {
+        match self.status.lock().await.clone() {
+            1 => {
+                Some(self.client.clone())
+            },
+            _ => {
+                None
+            }
+        }
     }
 
     pub async fn get_service(self: &Self) -> HashMap<String, String> {
+        match self.status.lock().await.clone() {
+            1 => {},
+            _ => {
+                self.svc_map.lock().await.clear();
+            }
+        }
         self.svc_map.lock().await.clone()
     }
 
     pub async fn dispose_reg_svc_client(self: &mut Self) -> Result<(), Box<dyn Error>> {
         self.client.lock().await.shutdown().await?;
+        *(self.status.lock().await) = 0 as u8;
+        self.svc_map.lock().await.clear();
         Ok(())
     }
 
@@ -57,11 +74,17 @@ impl MonSvcClient {
 
         {
             let client = self.client.clone();
+            let status = self.status.clone();
             let svc_map = self.svc_map.clone();
             // deal with all received watch responses
             tokio::spawn(async move {
                 let mut inbound = client.lock().await.watch(KeyRange::prefix(key_prefix.clone())).await.unwrap();
                 loop {
+                    if *(status.lock().await) == 0 {
+                        println!("[Cancel] service watcher at {:?}", Utc::now().to_string());
+                        warn!("[Cancel] service watcher at {:?}", Utc::now().to_string());
+                        break;
+                    }
                     match inbound.next().await {
                         Some(resp_res) => {
                             match resp_res {
