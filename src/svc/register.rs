@@ -60,17 +60,14 @@ impl RegSvcClient {
             tokio::spawn(async move {
                 loop {
                     if *(status.lock().await) == 0 {
-                        println!("[Cancel] keep alive response at {:?}", Utc::now().to_string());
                         warn!("[Cancel] keep alive response at {:?}", Utc::now().to_string());
                         break;
                     }
                     match inbound.next().await {
                         Some(resp) => {
-                            println!("keep alive response: {:?} at {:?}", resp, Utc::now().to_string());
                             debug!("keep alive response: {:?} at {:?}", resp, Utc::now().to_string());
                         },
                         None => {
-                            println!("[Cancel] keep alive response at {:?}", Utc::now().to_string());
                             warn!("[Cancel] keep alive response at {:?}", Utc::now().to_string());
                             break;
                         }
@@ -94,19 +91,16 @@ impl RegSvcClient {
             tokio::spawn(async move {
                 loop {
                     if *(status.lock().await) == 0 {
-                        println!("[Cancel] keep alive request at {:?}", Utc::now().to_string());
                         warn!("[Cancel] keep alive request at {:?}", Utc::now().to_string());
                         break;
                     }
                     let keep_alive_res = arc_client.lock().await.lease().keep_alive(LeaseKeepAliveRequest::new(resp_lease_grant.id())).await;
                     match keep_alive_res {
                         Ok(_) => {
-                            println!("keep alive request at {:?}", Utc::now().to_string());
                             debug!("keep alive request at {:?}", Utc::now().to_string());
                             tokio::time::sleep(Duration::from_secs(keep_alive_sec)).await;
                         },
                         Err(_) => {
-                            println!("[Cancel] keep alive request at {:?}", Utc::now().to_string());
                             warn!("[Cancel] keep alive request at {:?}", Utc::now().to_string());
                             break
                         }

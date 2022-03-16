@@ -87,3 +87,29 @@ func_delete, need to delete k: "/etcd_services/test/key"
 service watcher delete "/etcd_services/test/key" at "2022-03-06 10:13:09.947781800 UTC"
 [Cancel] service watcher at "2022-03-06 10:13:44.534192100 UTC"
 ```
+
+### Log printing
+
+* Strongly recommend to use crate flexi_logger to dup log to stdout `(by set duplicate_to_stdout Duplicate::All)`, so I remove all println! log.
+
+```
+fn init_log() {
+    flexi_logger::Logger::with_str("debug")
+        .log_to_file()
+        .directory("log")
+        .basename("app_name.log")
+        .duplicate_to_stdout(Duplicate::All)
+        .format_for_files(detailed_format)
+        .format_for_stdout(detailed_format)
+        .start()
+        .unwrap_or_else(|e| panic!("logger initialization failed, err: {}", e));
+}
+```
+
+### Dependencies (for log printing)
+
+```
+[dependencies]
+flexi_logger = "0.17"
+log = "0.4.14"
+```
