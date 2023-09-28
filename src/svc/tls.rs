@@ -1,13 +1,15 @@
-use tonic::transport::{Certificate, ClientTlsConfig, Identity};
+use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::error::Error;
-
+use tonic::transport::{Certificate, ClientTlsConfig, Identity};
 
 #[tokio::main]
-pub async fn build_tls_config(cli_key_file: String, cli_cert_file: String, ca_cert_file: String)
-                          -> Result<ClientTlsConfig, Box<dyn Error>> {
+pub async fn build_tls_config(
+    cli_key_file: String,
+    cli_cert_file: String,
+    ca_cert_file: String,
+) -> Result<ClientTlsConfig, Box<dyn Error>> {
     let mut cli_key_bytes: Vec<u8> = Vec::new();
     let mut cli_cert_bytes: Vec<u8> = Vec::new();
     let mut ca_cert_bytes: Vec<u8> = Vec::new();
